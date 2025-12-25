@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { User, TrendingUp, Wallet, BarChart3 } from 'lucide-react'
+import Landing from './components/Landing'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import Portfolio from './components/Portfolio'
@@ -10,6 +11,7 @@ import './App.css'
 function App() {
   const [user, setUser] = useState(null)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [authView, setAuthView] = useState('landing')
 
   useEffect(() => {
     // Check if user is logged in (from localStorage)
@@ -39,6 +41,7 @@ function App() {
     setUser(null)
     localStorage.removeItem('user')
     setActiveTab('dashboard')
+    setAuthView('landing')
   }
 
   const updateUserBalance = (newBalance) => {
@@ -48,7 +51,23 @@ function App() {
   }
 
   if (!user) {
-    return <Login onLogin={handleLogin} />
+    if (authView === 'landing') {
+      return (
+        <Landing
+          onLoginClick={() => setAuthView('login')}
+          onSignupClick={() => setAuthView('signup')}
+        />
+      )
+    }
+
+    return (
+      <Login
+        key={authView}
+        onLogin={handleLogin}
+        mode={authView === 'signup' ? 'register' : 'login'}
+        onBack={() => setAuthView('landing')}
+      />
+    )
   }
 
   const renderContent = () => {
