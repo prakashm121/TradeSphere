@@ -1,0 +1,150 @@
+import { useState } from 'react'
+import { TrendingUp, User, Lock, UserPlus } from 'lucide-react'
+import axios from 'axios'
+
+const API_BASE_URL = 'http://127.0.0.1:5000'
+
+function Login({ onLogin }) {
+  const [isRegister, setIsRegister] = useState(false)
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const endpoint = isRegister ? '/register' : '/login'
+      const response = await axios.post(`${API_BASE_URL}${endpoint}`, formData)
+      onLogin(response.data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center px-4">
+      <div className="max-w-md w-full">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-full mb-4">
+            <TrendingUp className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-white">TradeSphere</h1>
+          <p className="text-gray-400 mt-2">Trade virtual stocks and build your portfolio</p>
+        </div>
+
+        {/* Form */}
+        <div className="bg-gray-800 rounded-xl shadow-2xl p-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-white">
+              {isRegister ? 'Create Account' : 'Welcome Back'}
+            </h2>
+            <p className="text-gray-400 mt-1">
+              {isRegister ? 'Start with ₹50,000 virtual money' : 'Sign in to your account'}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Username
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter your username"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter your password"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-600 bg-opacity-20 border border-red-600 text-red-400 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  {isRegister ? <UserPlus className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                  <span>{isRegister ? 'Create Account' : 'Sign In'}</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setIsRegister(!isRegister)}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {isRegister 
+                ? 'Already have an account? Sign in' 
+                : "Don't have an account? Create one"
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="mt-8 grid grid-cols-2 gap-4 text-center text-sm text-gray-400">
+          <div>
+            <div className="font-semibold text-green-400">₹50,000</div>
+            <div>Starting Balance</div>
+          </div>
+          <div>
+            <div className="font-semibold text-blue-400">₹5,000</div>
+            <div>Daily Recovery</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Login
