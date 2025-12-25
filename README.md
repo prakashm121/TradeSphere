@@ -25,6 +25,7 @@ TradeSphere/
 ├── src/
 │   ├── components/
 │   │   ├── Dashboard.jsx   # Balance widgets + stock feed + recovery CTA
+|   |   ├── Landing.jsx     # Welcome message + signup form
 │   │   ├── Login.jsx       # Register/Login toggle
 │   │   ├── Portfolio.jsx   # Holdings table + distribution bars
 │   │   ├── Trading.jsx     # Order ticket + stock selector
