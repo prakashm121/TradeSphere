@@ -1,19 +1,50 @@
+/**
+ * Landing Page Component
+ * ----------------------
+ * This component renders the public landing page for the TradeSphere application.
+ * It highlights the product value proposition and provides entry points
+ * for authentication (Login / Signup).
+ *
+ * Tech Stack:
+ * - React (Functional Component)
+ * - Tailwind CSS (Styling)
+ * - lucide-react (Icons)
+ *
+ * Props:
+ * @param {Function} onLoginClick  - Callback triggered when user clicks Login
+ * @param {Function} onSignupClick - Callback triggered when user clicks Signup
+ */
+
 import { TrendingUp, Shield, Zap, BarChart3 } from 'lucide-react'
 
 function Landing({ onLoginClick, onSignupClick }) {
   return (
+    /**
+     * Root container
+     * - Full viewport height
+     * - Dark gradient background
+     * - Vertical layout using flexbox
+     */
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex flex-col">
+
+      {/* ================= HEADER ================= */}
       <header className="px-6 py-6 border-b border-gray-800">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
+
+          {/* Logo + Branding */}
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-green-500 bg-opacity-20 rounded-2xl flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-green-400" />
             </div>
             <div>
-              <p className="text-sm uppercase tracking-widest text-gray-400">Virtual Trading Suite</p>
+              <p className="text-sm uppercase tracking-widest text-gray-400">
+                Virtual Trading Suite
+              </p>
               <h1 className="text-3xl font-bold">TradeSphere</h1>
             </div>
           </div>
+
+          {/* Auth Buttons (hidden on small screens) */}
           <div className="space-x-4 hidden sm:flex">
             <button
               onClick={onLoginClick}
@@ -21,6 +52,7 @@ function Landing({ onLoginClick, onSignupClick }) {
             >
               Log In
             </button>
+
             <button
               onClick={onSignupClick}
               className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold"
@@ -31,22 +63,31 @@ function Landing({ onLoginClick, onSignupClick }) {
         </div>
       </header>
 
+      {/* ================= MAIN CONTENT ================= */}
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-6 py-16 grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center">
+
+          {/* -------- Left: Marketing Copy -------- */}
           <div className="space-y-8">
+
+            {/* Tagline Badge */}
             <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-gray-700 text-sm text-gray-300">
               <span className="w-2 h-2 rounded-full bg-green-400"></span>
               <span>Elevate your trading instincts</span>
             </div>
+
+            {/* Headline + Description */}
             <div className="space-y-6">
               <h2 className="text-4xl sm:text-5xl font-bold leading-tight">
                 Simulate real markets. Sharpen your strategy. Grow smarter every session.
               </h2>
               <p className="text-lg text-gray-300">
-                TradeSphere delivers an immersive trading arena with ₹50,000 virtual capital, live-style pricing,
-                recovery boosts, and a dynamic portfolio tracker so you can iterate fast without the risk.
+                TradeSphere delivers an immersive trading arena with ₹50,000 virtual capital,
+                live-style pricing, recovery boosts, and a dynamic portfolio tracker.
               </p>
             </div>
+
+            {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <button
                 onClick={onSignupClick}
@@ -54,6 +95,7 @@ function Landing({ onLoginClick, onSignupClick }) {
               >
                 Start with ₹50,000
               </button>
+
               <button
                 onClick={onLoginClick}
                 className="px-6 py-3 border border-gray-700 rounded-xl text-gray-200 hover:border-gray-500"
@@ -61,6 +103,8 @@ function Landing({ onLoginClick, onSignupClick }) {
                 I already have an account
               </button>
             </div>
+
+            {/* Metrics / Highlights */}
             <div className="grid grid-cols-3 gap-6 text-center">
               <div className="bg-gray-800 bg-opacity-60 rounded-2xl p-4">
                 <p className="text-sm text-gray-400">Starting Capital</p>
@@ -77,25 +121,41 @@ function Landing({ onLoginClick, onSignupClick }) {
             </div>
           </div>
 
+          {/* -------- Right: Feature Panel -------- */}
           <div className="bg-gray-900/80 border border-gray-800 rounded-3xl p-10 space-y-10">
+
+            {/* Section Header */}
             <div className="space-y-4">
-              <p className="text-sm uppercase tracking-[0.3em] text-gray-500">Why TradeSphere</p>
-              <h3 className="text-3xl font-semibold">Built for fearless experimentation</h3>
+              <p className="text-sm uppercase tracking-[0.3em] text-gray-500">
+                Why TradeSphere
+              </p>
+              <h3 className="text-3xl font-semibold">
+                Built for fearless experimentation
+              </h3>
             </div>
+
+            {/* Feature List */}
             <div className="space-y-6">
-              {[{
-                title: 'Guided trading missions',
-                description: 'Complete risk-free missions that mirror real market setups and measure confidence.',
-                icon: Zap
-              }, {
-                title: 'Portfolio depth & analytics',
-                description: 'Visualize holdings, understand exposure, and rebalance instantly with live-style charts.',
-                icon: BarChart3
-              }, {
-                title: 'Secure practice environment',
-                description: 'Layered account protections and localized data handling keep your progress safe.',
-                icon: Shield
-              }].map(feature => {
+              {[
+                {
+                  title: 'Guided trading missions',
+                  description:
+                    'Complete risk-free missions that mirror real market setups.',
+                  icon: Zap
+                },
+                {
+                  title: 'Portfolio depth & analytics',
+                  description:
+                    'Visualize holdings, exposure, and rebalance instantly.',
+                  icon: BarChart3
+                },
+                {
+                  title: 'Secure practice environment',
+                  description:
+                    'Layered protections keep your learning progress safe.',
+                  icon: Shield
+                }
+              ].map(feature => {
                 const Icon = feature.icon
                 return (
                   <div key={feature.title} className="flex items-start space-x-4">
@@ -104,7 +164,9 @@ function Landing({ onLoginClick, onSignupClick }) {
                     </div>
                     <div>
                       <p className="font-semibold text-lg">{feature.title}</p>
-                      <p className="text-gray-400 text-sm mt-1">{feature.description}</p>
+                      <p className="text-gray-400 text-sm mt-1">
+                        {feature.description}
+                      </p>
                     </div>
                   </div>
                 )
@@ -114,6 +176,7 @@ function Landing({ onLoginClick, onSignupClick }) {
         </div>
       </main>
 
+      {/* ================= FOOTER ================= */}
       <footer className="px-6 py-6 border-t border-gray-800 text-sm text-gray-500 text-center">
         Trusted by aspiring traders • Learn, iterate, and graduate to live markets
       </footer>

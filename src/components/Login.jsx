@@ -1,3 +1,26 @@
+/**
+ * Login Component
+ * ---------------
+ * Handles both user authentication and account creation
+ * for the TradeSphere platform.
+ *
+ * Features:
+ * - Toggle between Login and Register modes
+ * - Controlled form inputs (username & password)
+ * - API integration using Axios
+ * - Loading & error state handling
+ * - Clean, responsive UI using Tailwind CSS
+ *
+ * Tech Stack:
+ * - React (useState)
+ * - Axios (API requests)
+ * - Tailwind CSS (styling)
+ * - lucide-react (icons)
+ *
+ * Props:
+ * @param {Function} onLogin - Callback executed after successful login/register
+ *                            Receives authenticated user data from backend
+ */
 import { useState, useEffect } from 'react'
 import { TrendingUp, User, Lock, UserPlus } from 'lucide-react'
 import axios from 'axios'
