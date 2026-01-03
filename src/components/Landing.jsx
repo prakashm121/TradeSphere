@@ -33,8 +33,8 @@ function Landing({ onLoginClick, onSignupClick }) {
 
           {/* Logo + Branding */}
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-green-500 bg-opacity-20 rounded-2xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-400" />
+            <div className="w-12 h-12 bg-opacity-20 rounded-2xl flex items-center justify-center">
+              <img src="Stock.png" alt="Logo" className="w-10 h-10 object-contain rounded-1xl" />
             </div>
             <div>
               <p className="text-sm uppercase tracking-widest text-gray-400">
