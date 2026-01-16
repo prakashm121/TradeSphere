@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TrendingUp, TrendingDown, RefreshCw, Gift } from 'lucide-react'
 import axios from 'axios'
 
@@ -8,7 +8,11 @@ function Dashboard({ user, updateBalance }) {
   const [stocks, setStocks] = useState([])
   const [portfolio, setPortfolio] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState(null)
   const [recoveryStatus, setRecoveryStatus] = useState(null)
+  const lastFetchTime = useRef(0)
+  const cachedStocks = useRef([])
 
   useEffect(() => {
     if (!user?.user_id) return
@@ -20,6 +24,31 @@ function Dashboard({ user, updateBalance }) {
   }, [user?.user_id])
 
   const fetchData = async () => {
+    const currentTime = Date.now();
+
+    // Show refreshing animation
+    setRefreshing(true);
+    setError(null);
+
+    // If last fetch was within 30 seconds, use cached stocks
+    if (currentTime - lastFetchTime.current < 30000 && cachedStocks.current.length > 0) {
+      try {
+        // Only fetch portfolio data (which doesn't affect stock prices)
+        const portfolioRes = await axios.get(`${API_BASE_URL}/portfolio/${user.user_id}`)
+        setPortfolio(portfolioRes.data)
+        // Keep using cached stocks
+        setStocks(cachedStocks.current)
+      } catch (error) {
+        console.error('Error fetching portfolio data:', error)
+        setError('Failed to fetch portfolio data. Please check if the backend server is running.')
+      } finally {
+        setLoading(false)
+        // Hide refreshing animation after a brief delay for visual feedback
+        setTimeout(() => setRefreshing(false), 300)
+      }
+      return;
+    }
+
     try {
       const [stocksRes, portfolioRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/stocks`),
@@ -27,10 +56,15 @@ function Dashboard({ user, updateBalance }) {
       ])
       setStocks(stocksRes.data)
       setPortfolio(portfolioRes.data)
+      cachedStocks.current = stocksRes.data // Cache the stocks
+      lastFetchTime.current = currentTime // Update last fetch time
     } catch (error) {
       console.error('Error fetching data:', error)
+      setError('Failed to connect to the server. Please make sure the backend is running on http://127.0.0.1:5000')
     } finally {
       setLoading(false)
+      // Hide refreshing animation after a brief delay for visual feedback
+      setTimeout(() => setRefreshing(false), 300)
     }
   }
 
@@ -144,10 +178,11 @@ function Dashboard({ user, updateBalance }) {
           <h3 className="text-xl font-bold text-white">Stock Market</h3>
           <button
             onClick={fetchData}
-            className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+            disabled={refreshing}
+            className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-5 h-5" />
-            <span>Refresh</span>
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
         </div>
 
