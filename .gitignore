@@ -30,3 +30,4 @@ env/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+PRICE_TRACKING_PLAN.md
