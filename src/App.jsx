@@ -7,6 +7,7 @@ import Portfolio from './components/Portfolio'
 import Trading from './components/Trading'
 import Transactions from './components/Transactions'
 import './App.css'
+import { auth } from './utils/auth'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -14,32 +15,31 @@ function App() {
   const [authView, setAuthView] = useState('landing')
 
   useEffect(() => {
-    // Check if user is logged in (from localStorage)
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser)
-        if (parsed && parsed.user_id && typeof parsed.balance === 'number') {
-          setUser(parsed)
-        } else {
-          console.warn('Invalid saved user in localStorage; clearing it.')
-          localStorage.removeItem('user')
-        }
-      } catch (e) {
-        console.warn('Failed to parse saved user; clearing it.', e)
-        localStorage.removeItem('user')
+    // Restore session only if BOTH token + user are present.
+    const token = auth.getToken()
+    const savedUser = auth.getUser()
+
+    if (token && savedUser) {
+      if (savedUser && savedUser.user_id && typeof savedUser.balance === 'number') {
+        setUser(savedUser)
+      } else {
+        console.warn('Invalid saved user in localStorage; clearing auth.')
+        auth.clearAuth()
       }
+    } else {
+      // Avoid half-sessions (user without token or token without user)
+      auth.clearAuth()
     }
   }, [])
 
   const handleLogin = (userData) => {
     setUser(userData)
-    localStorage.setItem('user', JSON.stringify(userData))
+    auth.setUser(userData)
   }
 
   const handleLogout = () => {
     setUser(null)
-    localStorage.removeItem('user')
+    auth.clearAuth()
     setActiveTab('dashboard')
     setAuthView('landing')
   }
@@ -47,8 +47,19 @@ function App() {
   const updateUserBalance = (newBalance) => {
     const updatedUser = { ...user, balance: newBalance }
     setUser(updatedUser)
-    localStorage.setItem('user', JSON.stringify(updatedUser))
+    auth.setUser(updatedUser)
   }
+
+  useEffect(() => {
+    const onForcedLogout = () => {
+      // Triggered by axios interceptor on 401/403
+      setUser(null)
+      setActiveTab('dashboard')
+      setAuthView('landing')
+    }
+    window.addEventListener('auth:logout', onForcedLogout)
+    return () => window.removeEventListener('auth:logout', onForcedLogout)
+  }, [])
 
   if (!user) {
     if (authView === 'landing') {

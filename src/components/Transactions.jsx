@@ -16,7 +16,7 @@ function Transactions({ user }) {
 
   const fetchTransactions = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/transactions/${user.user_id}`)
+      const response = await axios.get(`${API_BASE_URL}/transactions`)
       setTransactions(response.data)
     } catch (error) {
       console.error('Error fetching transactions:', error)

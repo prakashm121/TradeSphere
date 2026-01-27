@@ -24,11 +24,12 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, User, Lock, UserPlus } from 'lucide-react'
 import axios from 'axios'
+import { auth } from '../utils/auth'
 
 const API_BASE_URL = 'http://127.0.0.1:5000'
 
-function Login({ onLogin }) {
-  const [isRegister, setIsRegister] = useState(false)
+function Login({ onLogin, mode }) {
+  const [isRegister, setIsRegister] = useState(mode === 'register')
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -36,17 +37,78 @@ function Login({ onLogin }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Keep internal state in sync with App-provided mode (login/register)
+  useEffect(() => {
+    if (mode === 'register') setIsRegister(true)
+    if (mode === 'login') setIsRegister(false)
+  }, [mode])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      const endpoint = isRegister ? '/register' : '/login'
+      // Backend supports:
+      // - POST /auth/login -> { access_token, token_type }
+      // - POST /auth/register -> user object (no token) => we auto-login after register
+      const endpoint = isRegister ? '/auth/register' : '/auth/login'
       const response = await axios.post(`${API_BASE_URL}${endpoint}`, formData)
-      onLogin(response.data)
+      // Backward compatible parsing:
+      // - New backend: { access_token, token_type, user }
+      // - Some variants: { token, user } or { accessToken, user }
+      // - Old backend: { user_id, username, balance }
+      const data = response.data
+      const token =
+        data?.access_token ??
+        data?.token ??
+        data?.accessToken ??
+        data?.jwt ??
+        null
+      if (token) auth.setToken(token)
+
+      // If this was register (no token returned), auto-login to get token
+      if (isRegister && !token) {
+        const loginRes = await axios.post(`${API_BASE_URL}/auth/login`, formData)
+        const loginData = loginRes.data
+        const loginToken =
+          loginData?.access_token ??
+          loginData?.token ??
+          loginData?.accessToken ??
+          loginData?.jwt ??
+          null
+        if (loginToken) auth.setToken(loginToken)
+      }
+
+      // If we have a token, fetch user identity + balance from backend
+      const storedToken = auth.getToken()
+      if (storedToken) {
+        const [meRes, balanceRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/auth/me`),
+          axios.get(`${API_BASE_URL}/balance`),
+        ])
+        const me = meRes.data
+        const balance = balanceRes.data?.balance
+        onLogin({
+          user_id: me.user_id,
+          username: me.username,
+          balance: typeof balance === 'number' ? balance : 0,
+        })
+        return
+      }
+
+      // Fallback: old backend shape already includes user fields
+      const userPayload = data?.user ?? data
+      onLogin(userPayload)
     } catch (err) {
-      setError(err.response?.data?.error || 'An error occurred')
+      const data = err?.response?.data
+      const msg =
+        data?.error ??
+        data?.detail ??
+        (Array.isArray(data?.detail) ? data.detail.map((d) => d?.msg).filter(Boolean).join(', ') : null) ??
+        err?.message ??
+        'An error occurred'
+      setError(msg)
     } finally {
       setLoading(false)
     }

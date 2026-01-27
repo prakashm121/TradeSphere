@@ -38,7 +38,7 @@ function Trading({ user, updateBalance }) {
     if (currentTime - lastFetchTime.current < 30000 && cachedStocks.current.length > 0) {
       try {
         // Only fetch portfolio data (which doesn't affect stock prices)
-        const portfolioRes = await axios.get(`${API_BASE_URL}/portfolio/${user.user_id}`)
+        const portfolioRes = await axios.get(`${API_BASE_URL}/portfolio`)
         setPortfolio(portfolioRes.data)
         // Keep using cached stocks
         setStocks(cachedStocks.current)
@@ -56,7 +56,7 @@ function Trading({ user, updateBalance }) {
     try {
       const [stocksRes, portfolioRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/stocks`),
-        axios.get(`${API_BASE_URL}/portfolio/${user.user_id}`)
+        axios.get(`${API_BASE_URL}/portfolio`)
       ])
       setStocks(stocksRes.data)
       setPortfolio(portfolioRes.data)
@@ -77,9 +77,8 @@ function Trading({ user, updateBalance }) {
 
     setTrading(true)
     try {
-      const endpoint = tradeType === 'buy' ? '/buy' : '/sell'
+      const endpoint = tradeType === 'buy' ? '/trades/buy' : '/trades/sell'
       const response = await axios.post(`${API_BASE_URL}${endpoint}`, {
-        user_id: user.user_id,
         stock_id: selectedStock.stock_id,
         quantity: parseInt(quantity)
       })

@@ -15,7 +15,7 @@ function Portfolio({ user }) {
 
   const fetchPortfolio = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/portfolio/${user.user_id}`)
+      const response = await axios.get(`${API_BASE_URL}/portfolio`)
       setPortfolio(response.data)
     } catch (error) {
       console.error('Error fetching portfolio:', error)
