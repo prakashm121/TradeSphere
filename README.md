@@ -18,26 +18,68 @@ TradeSphere is a full-stack virtual stock market simulator that pairs a Vite + R
 ## Project Structure
 ```
 TradeSphere/
+│
 ├── backend/
-│   ├── app.py              # FastAPI application + SQLite schema/seed
-│   └── stock_market.db     # SQLite database (auto-generated)
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py
+│   │   │
+│   │   ├── core/
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py
+│   │   │   ├── database.py
+│   │   │   └── security.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── user.py
+│   │   │   ├── stock.py
+│   │   │   ├── portfolio.py
+│   │   │   └── transaction.py
+│   │   │
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   ├── auth.py
+│   │   │   └── trade.py
+│   │   │
+│   │   ├── routers/
+│   │   │   ├── __init__.py
+│   │   │   ├── auth.py
+│   │   │   ├── stocks.py
+│   │   │   ├── trades.py
+│   │   │   ├── portfolio.py
+│   │   │   ├── transactions.py
+│   │   │   └── balance.py
+│   │   │
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       └── init_db.py
+│   │
+│   ├── .env
+│   ├── .env.example
+│   ├── requirements.txt
+│   └── README.md
+│
 ├── public/
 │   └── Stock.png
+│
 ├── src/
 │   ├── components/
-│   │   ├── Dashboard.jsx   # Balance widgets + stock feed + recovery CTA
-│   │   ├── Landing.jsx     # Welcome message + signup form
-│   │   ├── Login.jsx       # Register/Login toggle
-│   │   ├── Portfolio.jsx   # Holdings table + distribution bars
-│   │   ├── Trading.jsx     # Order ticket + stock selector
-│   │   └── Transactions.jsx# Filterable transaction history
-│   ├── App.jsx             # Layout, tab navigation, session handling
-│   ├── App.css             # Tailwind import + custom effects
-│   └── main.jsx            # React root bootstrap
+│   │   ├── Dashboard.jsx
+│   │   ├── Landing.jsx
+│   │   ├── Login.jsx
+│   │   ├── Portfolio.jsx
+│   │   ├── Trading.jsx
+│   │   └── Transactions.jsx
+│   │
+│   ├── App.jsx
+│   ├── App.css
+│   └── main.jsx
+│
 ├── package.json
-├── requirements.txt
 ├── vite.config.js
 ├── eslint.config.js
+│
 └── README.md
 ```
 
