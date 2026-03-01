@@ -143,6 +143,7 @@ npm run dev
 | GET | `/recovery-status/{user_id}` | Cooldown state + countdown timer |
 
 > **Note:** FastAPI uses path parameters with curly braces `{user_id}` instead of angle brackets `<user_id>`. The API also provides automatic interactive documentation at `http://127.0.0.1:8000/docs` (Swagger UI) and `http://127.0.0.1:8000/redoc` (ReDoc).
+> **Deployed API URL** `https://tradesphere.up.railway.app/`
 
 ## Data & Persistence
 - All data lives in `backend/stock_market.db`; delete the file to reset the simulation.
