@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, ShoppingCart, DollarSign, RefreshCw } from 'lucide-react';
 import axios from 'axios'
 
-const API_BASE_URL = 'http://127.0.0.1:5000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
 
 function Trading({ user, updateBalance }) {
   const [stocks, setStocks] = useState([])
@@ -64,7 +64,7 @@ function Trading({ user, updateBalance }) {
       lastFetchTime.current = currentTime // Update last fetch time
     } catch (error) {
       console.error('Error fetching data:', error)
-      setError('Failed to connect to the server. Please make sure the backend is running on http://127.0.0.1:5000')
+      setError(`Failed to connect to the server. Please make sure the backend is running on ${API_BASE_URL}`)
     } finally {
       setLoading(false)
       // Hide refreshing animation after a brief delay for visual feedback
