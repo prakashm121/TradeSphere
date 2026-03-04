@@ -49,7 +49,7 @@ function Portfolio({ user }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0 max-w-7xl mx-auto">
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">

@@ -63,6 +63,23 @@ function Landing({ onLoginClick, onSignupClick }) {
         </div>
       </header>
 
+      {/* mobile auth buttons */}
+      <div className="sm:hidden px-6 py-4 flex justify-center space-x-4">
+        <button
+          onClick={onLoginClick}
+          className="px-4 py-2 rounded-lg border border-gray-700 text-gray-200 hover:border-gray-500 transition"
+        >
+          Log In
+        </button>
+
+        <button
+          onClick={onSignupClick}
+          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold"
+        >
+          Sign Up
+        </button>
+      </div>
+
       {/* ================= MAIN CONTENT ================= */}
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-6 py-16 grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center">

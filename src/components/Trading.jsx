@@ -28,30 +28,9 @@ function Trading({ user, updateBalance }) {
   }, [user?.user_id])
 
   const fetchData = async () => {
-    const currentTime = Date.now();
-    
     // Show refreshing animation
     setRefreshing(true);
     setError(null);
-    
-    // If last fetch was within 30 seconds, use cached stocks
-    if (currentTime - lastFetchTime.current < 30000 && cachedStocks.current.length > 0) {
-      try {
-        // Only fetch portfolio data (which doesn't affect stock prices)
-        const portfolioRes = await axios.get(`${API_BASE_URL}/portfolio`)
-        setPortfolio(portfolioRes.data)
-        // Keep using cached stocks
-        setStocks(cachedStocks.current)
-      } catch (error) {
-        console.error('Error fetching portfolio data:', error)
-        setError('Failed to fetch portfolio data. Please check if the backend server is running.')
-      } finally {
-        setLoading(false)
-        // Hide refreshing animation after a brief delay for visual feedback
-        setTimeout(() => setRefreshing(false), 300)
-      }
-      return;
-    }
     
     try {
       const [stocksRes, portfolioRes] = await Promise.all([
@@ -60,8 +39,7 @@ function Trading({ user, updateBalance }) {
       ])
       setStocks(stocksRes.data)
       setPortfolio(portfolioRes.data)
-      cachedStocks.current = stocksRes.data // Cache the stocks
-      lastFetchTime.current = currentTime // Update last fetch time
+      cachedStocks.current = stocksRes.data // Cache the stocks (still used for instant paint)
     } catch (error) {
       console.error('Error fetching data:', error)
       setError(`Failed to connect to the server. Please make sure the backend is running on ${API_BASE_URL}`)
@@ -138,7 +116,7 @@ function Trading({ user, updateBalance }) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="px-4 sm:px-0 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Stock List */}
       <div className="lg:col-span-2 space-y-6">
         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
