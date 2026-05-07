@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { TrendingUp, TrendingDown, RefreshCw, Gift } from "lucide-react";
 import axios from "axios";
 
@@ -14,38 +14,7 @@ function Dashboard({ user, updateBalance }) {
   const lastFetchTime = useRef(0);
   const cachedStocks = useRef([]);
 
-  useEffect(() => {
-    if (!user?.user_id) return;
-
-    // Hydrate from localStorage cache for instant first paint (then refresh in background)
-    try {
-      const cachedStocksRaw = localStorage.getItem(`stocks_cache:${user.user_id}`);
-      const cachedPortfolioRaw = localStorage.getItem(`portfolio_cache:${user.user_id}`);
-      const cachedStocksParsed = cachedStocksRaw ? JSON.parse(cachedStocksRaw) : null;
-      const cachedPortfolioParsed = cachedPortfolioRaw ? JSON.parse(cachedPortfolioRaw) : null;
-
-      if (Array.isArray(cachedStocksParsed) && cachedStocksParsed.length > 0) {
-        cachedStocks.current = cachedStocksParsed;
-        setStocks(cachedStocksParsed);
-        // make cache look "fresh" for 30s to avoid immediate duplicate fetches
-        lastFetchTime.current = Date.now();
-        setLoading(false);
-      }
-      if (Array.isArray(cachedPortfolioParsed)) {
-        setPortfolio(cachedPortfolioParsed);
-      }
-    } catch {
-      // ignore cache parse errors
-    }
-
-    fetchData();
-    fetchRecoveryStatus();
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [user?.user_id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     // Show refreshing animation
     setRefreshing(true);
     setError(null);
@@ -82,7 +51,38 @@ function Dashboard({ user, updateBalance }) {
       setLoading(false);
       setTimeout(() => setRefreshing(false), 300);
     }
-  };
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (!user?.user_id) return;
+
+    // Hydrate from localStorage cache for instant first paint (then refresh in background)
+    try {
+      const cachedStocksRaw = localStorage.getItem(`stocks_cache:${user.user_id}`);
+      const cachedPortfolioRaw = localStorage.getItem(`portfolio_cache:${user.user_id}`);
+      const cachedStocksParsed = cachedStocksRaw ? JSON.parse(cachedStocksRaw) : null;
+      const cachedPortfolioParsed = cachedPortfolioRaw ? JSON.parse(cachedPortfolioRaw) : null;
+
+      if (Array.isArray(cachedStocksParsed) && cachedStocksParsed.length > 0) {
+        cachedStocks.current = cachedStocksParsed;
+        setStocks(cachedStocksParsed);
+        // make cache look "fresh" for 30s to avoid immediate duplicate fetches
+        lastFetchTime.current = Date.now();
+        setLoading(false);
+      }
+      if (Array.isArray(cachedPortfolioParsed)) {
+        setPortfolio(cachedPortfolioParsed);
+      }
+    } catch {
+      // ignore cache parse errors
+    }
+
+    fetchData();
+    fetchRecoveryStatus();
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [user?.user_id, fetchData]);
 
   const fetchRecoveryStatus = async () => {
     try {

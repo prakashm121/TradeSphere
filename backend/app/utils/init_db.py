@@ -47,7 +47,14 @@ def init_database():
         ]
         
         for name, symbol, price in stocks_data:
-            stock = Stock(name=name, symbol=symbol, price=price)
+            stock = Stock(
+                name=name,
+                symbol=symbol,
+                price=price,
+                last_traded_price=price,
+                bid_price=None,
+                ask_price=None,
+            )
             db.add(stock)
         
         db.commit()

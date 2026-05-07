@@ -119,7 +119,7 @@ function App() {
             
             <div className="flex items-center space-x-2">
               <User className="w-5 h-5" />
-              <span>{user.username}</span>
+              <span>{user.email ?? user.username ?? 'User'}</span>
             </div>
             
             <button
@@ -210,7 +210,7 @@ function App() {
             <div className="border-t border-gray-700 px-4 py-3">
               <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-700">
                 <User className="w-5 h-5" />
-                <span className="font-semibold">{user.username}</span>
+                <span className="font-semibold">{user.email ?? user.username ?? 'User'}</span>
               </div>
               <button
                 onClick={handleLogout}

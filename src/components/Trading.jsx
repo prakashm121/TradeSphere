@@ -17,7 +17,6 @@ function Trading({ user, updateBalance }) {
   
   // Use refs for caching to avoid unnecessary re-renders
   const cachedStocks = useRef([])
-  const lastFetchTime = useRef(0)
 
   useEffect(() => {
     if (!user?.user_id) return
