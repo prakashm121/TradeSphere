@@ -6,7 +6,7 @@
  *
  * Features:
  * - Toggle between Login and Register modes
- * - Controlled form inputs (username & password)
+ * - Controlled form inputs (email & password)
  * - API integration using Axios
  * - Loading & error state handling
  * - Clean, responsive UI using Tailwind CSS
@@ -22,7 +22,7 @@
  *                            Receives authenticated user data from backend
  */
 import { useState, useEffect } from 'react'
-import { TrendingUp, User, Lock, UserPlus } from 'lucide-react'
+import { TrendingUp, User, Lock, UserPlus, Mail } from 'lucide-react'
 import axios from 'axios'
 import { auth } from '../utils/auth'
 
@@ -31,9 +31,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
 function Login({ onLogin, mode }) {
   const [isRegister, setIsRegister] = useState(mode === 'register')
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: ''
   })
+  const [successMsg, setSuccessMsg] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -47,6 +48,7 @@ function Login({ onLogin, mode }) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccessMsg('')
 
     try {
       // Backend supports:
@@ -67,17 +69,13 @@ function Login({ onLogin, mode }) {
         null
       if (token) auth.setToken(token)
 
-      // If this was register (no token returned), auto-login to get token
-      if (isRegister && !token) {
-        const loginRes = await axios.post(`${API_BASE_URL}/auth/login`, formData)
-        const loginData = loginRes.data
-        const loginToken =
-          loginData?.access_token ??
-          loginData?.token ??
-          loginData?.accessToken ??
-          loginData?.jwt ??
-          null
-        if (loginToken) auth.setToken(loginToken)
+      // If this was register, show verification message instead of auto-login
+      if (isRegister) {
+        setSuccessMsg('Account created! Check your email to verify your account before logging in.')
+        setIsRegister(false)
+        setFormData({ email: formData.email, password: '' })
+        setLoading(false)
+        return
       }
 
       // If we have a token, fetch user identity + balance from backend
@@ -91,7 +89,7 @@ function Login({ onLogin, mode }) {
         const balance = balanceRes.data?.balance
         onLogin({
           user_id: me.user_id,
-          username: me.username,
+          email: me.email,
           balance: typeof balance === 'number' ? balance : 0,
         })
         return
@@ -147,18 +145,18 @@ function Login({ onLogin, mode }) {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Username
+                Email
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
+                  type="email"
+                  name="email"
+                  value={formData.email}
                   onChange={handleChange}
                   required
                   className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your username"
+                  placeholder="Enter your email"
                 />
               </div>
             </div>
@@ -184,6 +182,12 @@ function Login({ onLogin, mode }) {
             {error && (
               <div className="bg-red-600 bg-opacity-20 border border-red-600 text-red-400 px-4 py-3 rounded-lg">
                 {error}
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="bg-green-600 bg-opacity-20 border border-green-600 text-green-400 px-4 py-3 rounded-lg">
+                {successMsg}
               </div>
             )}
 

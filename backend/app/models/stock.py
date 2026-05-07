@@ -10,6 +10,10 @@ class Stock(Base):
     name = Column(String, nullable=False)
     symbol = Column(String, unique=True, index=True, nullable=False)
     price = Column(Float, nullable=False)
+    # V2 market fields (price moves only via executed trades)
+    last_traded_price = Column(Float, nullable=True)
+    bid_price = Column(Float, nullable=True)
+    ask_price = Column(Float, nullable=True)
     
     # Relationships
     transactions = relationship("Transaction", back_populates="stock")

@@ -14,10 +14,10 @@ def get_portfolio(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's portfolio."""
+    """Get user's portfolio (includes long and short positions)."""
     portfolio_items = db.query(Portfolio).filter(
         Portfolio.user_id == current_user.user_id,
-        Portfolio.quantity > 0
+        Portfolio.quantity != 0
     ).all()
     
     result = []

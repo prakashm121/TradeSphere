@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 
 class TradeRequest(BaseModel):
@@ -45,6 +46,16 @@ class TransactionResponse(BaseModel):
     name: Optional[str] = None
     symbol: Optional[str] = None
     
+    class Config:
+        from_attributes = True
+
+class TradeHistoryResponse(BaseModel):
+    id: int
+    stock_id: int
+    price: float
+    quantity: int
+    timestamp: datetime
+
     class Config:
         from_attributes = True
 
