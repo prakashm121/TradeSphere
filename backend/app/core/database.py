@@ -4,17 +4,24 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
 # Create engine
-# SQLite requires check_same_thread=False, Postgres does not.
 if settings.DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         settings.DATABASE_URL,
         connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(settings.DATABASE_URL)
+    engine = create_engine(
+        settings.DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
 
 # Create SessionLocal class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
 
 # Create Base class for models
 Base = declarative_base()
@@ -27,4 +34,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
