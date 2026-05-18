@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { TrendingUp, TrendingDown, RefreshCw, Gift } from "lucide-react";
 import axios from "axios";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+import { API_BASE_URL } from "../utils/axiosAuthSetup";
 
 function Dashboard({ user, updateBalance }) {
   const [stocks, setStocks] = useState([]);
@@ -260,7 +259,7 @@ function Dashboard({ user, updateBalance }) {
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold text-white">
                   ₹
-                  {stock.price.toLocaleString("en-IN", {
+                  {(stock.last_traded_price ?? stock.price).toLocaleString("en-IN", {
                     maximumFractionDigits: 2,
                   })}
                 </span>

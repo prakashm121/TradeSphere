@@ -25,8 +25,7 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, User, Lock, UserPlus, Mail } from 'lucide-react'
 import axios from 'axios'
 import { auth } from '../utils/auth'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+import { API_BASE_URL } from '../utils/axiosAuthSetup'
 
 function Login({ onLogin, mode }) {
   const [isRegister, setIsRegister] = useState(mode === 'register')
@@ -100,7 +99,13 @@ function Login({ onLogin, mode }) {
       onLogin(userPayload)
     } catch (err) {
       const data = err?.response?.data
+      const timeoutMsg =
+        err?.code === 'ECONNABORTED' ||
+        err?.message?.toLowerCase().includes('timeout')
+          ? 'Server did not respond. Please make sure the backend is running and try again.'
+          : null
       const msg =
+        timeoutMsg ??
         data?.error ??
         data?.detail ??
         (Array.isArray(data?.detail) ? data.detail.map((d) => d?.msg).filter(Boolean).join(', ') : null) ??

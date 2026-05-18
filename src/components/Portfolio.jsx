@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react'
 import axios from 'axios'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+import { API_BASE_URL } from '../utils/axiosAuthSetup'
 
 function Portfolio({ user }) {
   const [portfolio, setPortfolio] = useState([])

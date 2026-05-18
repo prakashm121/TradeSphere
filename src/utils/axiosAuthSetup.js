@@ -3,12 +3,16 @@ import { auth } from './auth'
 
 const LOGOUT_EVENT = 'auth:logout'
 
+// API configuration
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+
 // Ensure we only register interceptors once (important with HMR/dev reloads)
 if (!axios.__tradesphereAuthInterceptorsInstalled) {
   axios.__tradesphereAuthInterceptorsInstalled = true
 
-  // Fail fast when backend is down (prevents infinite-looking spinners)
-  axios.defaults.timeout = 8000
+  // Give login enough time, but still fail fast if backend is down
+  axios.defaults.timeout = 15000
 
   axios.interceptors.request.use(
     (config) => {

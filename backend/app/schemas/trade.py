@@ -11,6 +11,7 @@ class TradeRequest(BaseModel):
 class TradeResponse(BaseModel):
     success: bool
     new_balance: float
+    available_cash: float
 
 
 class StockResponse(BaseModel):
@@ -18,6 +19,9 @@ class StockResponse(BaseModel):
     name: str
     symbol: str
     price: float
+    last_traded_price: Optional[float] = None
+    bid_price: Optional[float] = None
+    ask_price: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -30,6 +34,10 @@ class PortfolioItem(BaseModel):
     price: float
     stock_id: int
     current_value: float
+    avg_entry_price: float
+    margin_held: float
+    position_type: str  # "LONG" | "SHORT"
+    unrealised_pnl: float
     
     class Config:
         from_attributes = True

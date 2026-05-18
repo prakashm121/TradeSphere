@@ -1,91 +1,343 @@
-import { useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, ShoppingCart, DollarSign, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Terminal } from 'lucide-react'
 import axios from 'axios'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
+import { API_BASE_URL, WS_BASE_URL } from '../utils/axiosAuthSetup'
+import TradingStockList from './TradingStockList'
+import TradingOrderPanel from './TradingOrderPanel'
+import TradingChartModal from './TradingChartModal'
+import CandleChart from './CandleChart'
 
 function Trading({ user, updateBalance }) {
   const [stocks, setStocks] = useState([])
   const [portfolio, setPortfolio] = useState([])
   const [selectedStock, setSelectedStock] = useState(null)
+  const selectedStockId = selectedStock?.stock_id
+  const resolutionOptions = ['1m', '5m', '1h', '1D', '1W']
   const [tradeType, setTradeType] = useState('buy')
+  const [orderType, setOrderType] = useState('MARKET')
+  const [limitPrice, setLimitPrice] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [loading, setLoading] = useState(true)
   const [trading, setTrading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
-  
-  // Use refs for caching to avoid unnecessary re-renders
-  const cachedStocks = useRef([])
+  const [socketStatus, setSocketStatus] = useState('connecting')
+  const [orderBook, setOrderBook] = useState(null)
+  const [candles, setCandles] = useState([])
+  const [candleResolution, setCandleResolution] = useState('5m')
+  const [candleLoading, setCandleLoading] = useState(false)
+  const [isChartOpen, setIsChartOpen] = useState(false)
+  const socketRef = useRef(null)
+  const selectedStockRef = useRef(null)
+  const candleResolutionRef = useRef('5m')
+
+  const handleSocketEvent = useCallback((event) => {
+    try {
+      if (!event?.type) return
+
+      if (event.type === 'market_snapshot' && event.data) {
+        const snapshot = event.data
+        setStocks((prev) => prev.map((stock) => {
+          const update = Object.values(snapshot).find((item) => item.stock_id === stock.stock_id)
+          return update ? {
+            ...stock,
+            price: update.last_price,
+            bid_price: update.bid,
+            ask_price: update.ask,
+            last_traded_price: update.last_price,
+          } : stock
+        }))
+        setSelectedStock((prev) => {
+          if (!prev) return prev
+          const update = Object.values(snapshot).find((item) => item.stock_id === prev.stock_id)
+          return update ? {
+            ...prev,
+            price: update.last_price,
+            bid_price: update.bid,
+            ask_price: update.ask,
+            last_traded_price: update.last_price,
+          } : prev
+        })
+        return
+      }
+
+      if (event.type === 'price_update') {
+        setStocks((prev) => prev.map((stock) => {
+          if (stock.stock_id !== event.stock_id) return stock
+          return {
+            ...stock,
+            price: event.price,
+            bid_price: event.bid,
+            ask_price: event.ask,
+            last_traded_price: event.price,
+          }
+        }))
+
+        setSelectedStock((prev) => prev?.stock_id === event.stock_id ? {
+          ...prev,
+          price: event.price,
+          bid_price: event.bid,
+          ask_price: event.ask,
+          last_traded_price: event.price,
+        } : prev)
+        return
+      }
+
+      if (event.type === 'candle_update' && selectedStockRef.current?.stock_id === event.stock_id && event.resolution === candleResolutionRef.current) {
+        setCandles((prev) => {
+          const next = [...prev]
+          const index = next.findIndex((c) => c.open_time === event.candle.open_time)
+          if (index >= 0) {
+            next[index] = event.candle
+          } else {
+            next.push(event.candle)
+            next.sort((a, b) => new Date(a.open_time) - new Date(b.open_time))
+          }
+          return next.slice(-30)
+        })
+        return
+      }
+
+      if (event.type === 'book_snapshot' && selectedStockRef.current?.stock_id === event.stock_id) {
+        setOrderBook({ bids: event.bids, asks: event.asks })
+        return
+      }
+
+      if (event.type === 'trade_tick') {
+        setStocks((prev) => prev.map((stock) => {
+          if (stock.stock_id !== event.stock_id) return stock
+          return {
+            ...stock,
+            price: event.price,
+            last_traded_price: event.price,
+          }
+        }))
+        setSelectedStock((prev) => prev?.stock_id === event.stock_id ? {
+          ...prev,
+          price: event.price,
+          last_traded_price: event.price,
+        } : prev)
+      }
+    } catch (err) {
+      console.error('Error handling socket event:', err)
+    }
+  }, [])
+
+  // Keep refs in sync with state for safe closure access
+  useEffect(() => {
+    selectedStockRef.current = selectedStock
+  }, [selectedStock])
+
+  useEffect(() => {
+    candleResolutionRef.current = candleResolution
+  }, [candleResolution])
 
   useEffect(() => {
     if (!user?.user_id) return
-    fetchData()
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
+
+    try {
+      const socket = new WebSocket(`${WS_BASE_URL}/ws/market`)
+      socketRef.current = socket
+
+      socket.addEventListener('open', () => setSocketStatus('connected'))
+      socket.addEventListener('close', () => setSocketStatus('disconnected'))
+      socket.addEventListener('error', () => setSocketStatus('error'))
+
+      socket.addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          handleSocketEvent(message)
+        } catch (err) {
+          console.warn('Invalid websocket message', err)
+        }
+      })
+
+      return () => {
+        try {
+          socket.close(1000, 'Client cleanup')
+        } catch (e) {
+          console.warn('Error closing WebSocket:', e)
+        }
+      }
+    } catch (err) {
+      console.error('Error setting up WebSocket:', err)
+      setSocketStatus('error')
+    }
   }, [user?.user_id])
 
-  const fetchData = async () => {
-    // Show refreshing animation
-    setRefreshing(true);
-    setError(null);
-    
+  const fetchOrderBook = useCallback(async (stockId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/stocks/${stockId}/book`)
+      setOrderBook(response.data)
+    } catch (error) {
+      console.error('Error fetching order book:', error)
+      setOrderBook(null)
+    }
+  }, [])
+
+  const fetchCandles = useCallback(async (stockId, resolution) => {
+    setCandleLoading(true)
+    try {
+      const response = await axios.get(`${API_BASE_URL}/stocks/${stockId}/candles`, {
+        params: { resolution, limit: 200 },
+      })
+      const incoming = response.data || []
+      const sorted = [...incoming].sort((a, b) => new Date(a.open_time) - new Date(b.open_time))
+      setCandles(sorted)
+    } catch (error) {
+      console.error('Error fetching candles:', error)
+      setCandles([])
+    } finally {
+      setCandleLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedStockId) {
+      setOrderBook(null)
+      setCandles([])
+      return
+    }
+
+    fetchOrderBook(selectedStockId)
+    fetchCandles(selectedStockId, candleResolution)
+  }, [selectedStockId, candleResolution, fetchOrderBook, fetchCandles])
+
+  useEffect(() => {
+    if (!selectedStockId) return
+    const initialPrice = Number(selectedStock?.price ?? selectedStock?.last_traded_price)
+    setLimitPrice(Number.isFinite(initialPrice) && initialPrice > 0 ? initialPrice.toFixed(2) : '')
+  }, [selectedStockId, selectedStock])
+
+  const parseNumeric = (value, fallback = 0) => {
+    const number = Number(value)
+    return Number.isFinite(number) ? number : fallback
+  }
+
+  const selectedCandle = candles[candles.length - 1]
+  const currentPrice = parseNumeric(selectedStock?.last_traded_price ?? selectedStock?.price ?? selectedCandle?.close)
+  const previousClose = parseNumeric(selectedStock?.previous_close ?? selectedStock?.open_price ?? selectedCandle?.open ?? currentPrice)
+  const priceChange = currentPrice && previousClose ? currentPrice - previousClose : 0
+  const priceChangePercent = previousClose ? (priceChange / previousClose) * 100 : 0
+
+  const formatPrice = (value) => {
+    return Number.isFinite(value) ? value.toFixed(2) : '—'
+  }
+
+  const fetchData = useCallback(async (autoSelect = false) => {
+    setRefreshing(true)
+    setError(null)
+
     try {
       const [stocksRes, portfolioRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/stocks`),
-        axios.get(`${API_BASE_URL}/portfolio`)
+        axios.get(`${API_BASE_URL}/portfolio`),
       ])
-      setStocks(stocksRes.data)
+      const fetchedStocks = stocksRes.data
+      setStocks(fetchedStocks)
       setPortfolio(portfolioRes.data)
-      cachedStocks.current = stocksRes.data // Cache the stocks (still used for instant paint)
+
+      if (selectedStockRef.current) {
+        const updatedSelected = fetchedStocks.find((stock) => stock.stock_id === selectedStockRef.current.stock_id)
+        if (updatedSelected) {
+          setSelectedStock(updatedSelected)
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
-      setError(`Failed to connect to the server. Please make sure the backend is running on ${API_BASE_URL}`)
+      const status = error?.response?.status
+      if (status === 401 || status === 403) {
+        setError('Session expired or unauthorized. Please log in again.')
+        window.dispatchEvent(new Event('auth:logout'))
+      } else if (error?.request) {
+        setError(`Failed to connect to the backend. Please make sure the backend is running on ${API_BASE_URL}`)
+      } else {
+        setError(error?.message || `Failed to connect to ${API_BASE_URL}`)
+      }
     } finally {
       setLoading(false)
-      // Hide refreshing animation after a brief delay for visual feedback
       setTimeout(() => setRefreshing(false), 300)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!user?.user_id) return
+
+    fetchData(false)
+
+    const interval = setInterval(() => {
+      fetchData(false)
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [user?.user_id, fetchData])
 
   const handleTrade = async () => {
     if (!selectedStock || quantity <= 0) return
 
+    if (orderType === 'LIMIT' && (!limitPrice || Number(limitPrice) <= 0)) {
+      alert('Please enter a valid limit price')
+      return
+    }
+
     setTrading(true)
     try {
-      const endpoint = tradeType === 'buy' ? '/trades/buy' : '/trades/sell'
-      const response = await axios.post(`${API_BASE_URL}${endpoint}`, {
+      const requestBody = {
         stock_id: selectedStock.stock_id,
-        quantity: parseInt(quantity)
-      })
+        side: tradeType === 'buy' ? 'BUY' : 'SELL',
+        order_type: orderType,
+        quantity: parseInt(quantity, 10),
+        ...(orderType === 'LIMIT' ? { price: Number(limitPrice) } : {}),
+      }
 
+      const response = await axios.post(`${API_BASE_URL}/orders`, requestBody)
       updateBalance(response.data.new_balance)
       await fetchData()
       setQuantity(1)
-      alert(`Successfully ${tradeType === 'buy' ? 'bought' : 'sold'} ${quantity} shares of ${selectedStock.symbol}!`)
+      alert(`Successfully submitted ${orderType.toLowerCase()} ${tradeType === 'buy' ? 'buy' : 'sell'} order for ${quantity} shares of ${selectedStock.symbol}`)
     } catch (error) {
-      alert(error.response?.data?.error || 'Trade failed')
+      console.error('Order error:', error)
+      const detail = error?.response?.data?.detail || error?.response?.data?.error
+      const message = detail || error?.message || 'Order failed'
+      alert(message)
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        window.dispatchEvent(new Event('auth:logout'))
+      }
     } finally {
       setTrading(false)
     }
   }
 
   const getOwnedQuantity = (stockId) => {
-    const holding = portfolio.find(p => p.stock_id === stockId)
+    if (!Array.isArray(portfolio)) return 0
+    const holding = portfolio.find((p) => p.stock_id === stockId)
     return holding ? holding.quantity : 0
   }
 
-  const calculateTotal = () => {
+  const handleSelectStock = (stock) => {
+    setSelectedStock(stock)
+    setIsChartOpen(true)
+  }
+
+  const orderPrice = () => {
     if (!selectedStock) return 0
-    return selectedStock.price * quantity
+    if (orderType === 'LIMIT') {
+      return Number(limitPrice) || 0
+    }
+    return parseNumeric(selectedStock.ask_price ?? selectedStock.price ?? selectedStock.last_traded_price)
+  }
+
+  const calculateTotal = () => {
+    return orderPrice() * quantity
   }
 
   const canAfford = () => {
+    if (!selectedStock) return false
     if (tradeType === 'sell') {
-      const owned = getOwnedQuantity(selectedStock?.stock_id)
+      const owned = getOwnedQuantity(selectedStock.stock_id)
       return quantity <= owned
     }
+
     return calculateTotal() <= user.balance
   }
 
@@ -104,7 +356,7 @@ function Trading({ user, updateBalance }) {
           <div className="text-red-400 text-xl mb-4">⚠️ Connection Error</div>
           <p className="text-gray-400 mb-4">{error}</p>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(false)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Retry Connection
@@ -115,206 +367,204 @@ function Trading({ user, updateBalance }) {
   }
 
   return (
-    <div className="px-4 sm:px-0 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Stock List */}
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">Available Stocks</h3>
-            <button
-              onClick={fetchData}
-              className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors cursor-pointer"
-              disabled={refreshing}
-            >
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {stocks.map((stock) => {
-              const owned = getOwnedQuantity(stock.stock_id)
-              const isSelected = selectedStock?.stock_id === stock.stock_id
-              
-              return (
-                <div
-                  key={stock.stock_id}
-                  onClick={() => setSelectedStock(stock)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    isSelected 
-                      ? 'border-blue-500 bg-blue-600 bg-opacity-20' 
-                      : 'border-gray-600 hover:border-gray-500 bg-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <h4 className="font-semibold text-white">{stock.symbol}</h4>
-                          <p className="text-sm text-gray-400">{stock.name}</p>
-                        </div>
-                        {owned > 0 && (
-                          <span className="px-2 py-1 bg-green-600 bg-opacity-20 text-green-400 text-xs rounded-full">
-                            {owned} owned
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-white">
-                        ₹{stock.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="flex items-center space-x-1 text-xs">
-                        <TrendingUp className="w-3 h-3 text-green-400" />
-                        <span className="text-green-400">Live</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Trading Panel */}
-      <div className="space-y-6">
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h3 className="text-xl font-bold text-white mb-6">Place Order</h3>
-          
+    <>
+      <div className="px-4 sm:px-0 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
           {selectedStock ? (
-            <div className="space-y-6">
-              {/* Selected Stock Info */}
-              <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-white">{selectedStock.symbol}</h4>
-                  <span className="text-lg font-bold text-green-400">
-                    ₹{selectedStock.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                  </span>
+            <div className="bg-gray-900 rounded-3xl border border-gray-700 p-6 space-y-6">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="text-2xl font-bold text-white">{selectedStock.symbol}</div>
+                    <span className="text-sm text-gray-400">{selectedStock.name}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="text-4xl font-bold text-green-400">₹{currentPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+                    <div className={`text-sm font-semibold ${priceChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-gray-300">
+                    <div className="rounded-2xl bg-slate-950/70 p-3">
+                      <div className="text-xs uppercase text-gray-500">Open</div>
+                      <div className="font-semibold">₹{formatPrice(selectedCandle?.open)}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-950/70 p-3">
+                      <div className="text-xs uppercase text-gray-500">High</div>
+                      <div className="font-semibold">₹{formatPrice(selectedCandle?.high)}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-950/70 p-3">
+                      <div className="text-xs uppercase text-gray-500">Low</div>
+                      <div className="font-semibold">₹{formatPrice(selectedCandle?.low)}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-950/70 p-3">
+                      <div className="text-xs uppercase text-gray-500">Close</div>
+                      <div className="font-semibold">₹{formatPrice(selectedCandle?.close)}</div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-400">{selectedStock.name}</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  You own: {getOwnedQuantity(selectedStock.stock_id)} shares
-                </p>
-              </div>
-
-              {/* Trade Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Order Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setTradeType('buy')}
-                    className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
-                      tradeType === 'buy'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  >
-                    <ShoppingCart className="w-4 h-4 inline mr-2" />
-                    Buy
-                  </button>
-                  <button
-                    onClick={() => setTradeType('sell')}
-                    disabled={getOwnedQuantity(selectedStock.stock_id) === 0}
-                    className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
-                      tradeType === 'sell'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed'
-                    }`}
-                  >
-                    <DollarSign className="w-4 h-4 inline mr-2" />
-                    Sell
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  {resolutionOptions.map((resolution) => (
+                    <button
+                      key={resolution}
+                      onClick={() => setCandleResolution(resolution)}
+                      className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${candleResolution === resolution ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                    >
+                      {resolution.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={tradeType === 'sell' ? getOwnedQuantity(selectedStock.stock_id) : undefined}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Order Summary */}
-              <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Price per share:</span>
-                    <span className="text-white">₹{selectedStock.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+              <div className="rounded-3xl border border-gray-700 overflow-hidden bg-slate-950/90">
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="text-sm text-gray-400">Chart available in modal</div>
+                    <button
+                      onClick={() => setIsChartOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                    >
+                      View chart
+                    </button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Quantity:</span>
-                    <span className="text-white">{quantity}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-gray-600 pt-2">
-                    <span className="text-gray-400">Total:</span>
-                    <span className={`font-semibold ${tradeType === 'buy' ? 'text-red-400' : 'text-green-400'}`}>
-                      {tradeType === 'buy' ? '-' : '+'}₹{calculateTotal().toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </span>
+                  <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+                    <div className="rounded-3xl bg-black/40 p-6 flex flex-col items-center justify-center text-center min-h-[340px]">
+                      <div className="text-white text-lg font-semibold mb-2">Flip open the chart for details.</div>
+                      <p className="text-sm text-gray-400 mb-6 max-w-xl">
+                        The full candlestick and volume panel is now shown in the modal so the stock list stays compact.
+                      </p>
+                      <button
+                        onClick={() => setIsChartOpen(true)}
+                        className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition"
+                      >
+                        Open chart
+                      </button>
+                    </div>
+                    <div className="bg-slate-950/80 rounded-3xl border border-gray-700 p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-white font-semibold">Order Book</h4>
+                          <p className="text-sm text-gray-500">Top 5 bids & asks</p>
+                        </div>
+                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${orderBook ? 'bg-emerald-500/20 text-emerald-200' : 'bg-gray-700 text-gray-300'}`}>
+                          {orderBook ? 'LIVE' : 'OFFLINE'}
+                        </span>
+                      </div>
+                      {orderBook ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3 text-xs uppercase text-gray-400 tracking-wide">
+                            <span>Bid</span>
+                            <span>Ask</span>
+                          </div>
+                          <div className="space-y-2">
+                            {Array.from({ length: 5 }).map((_, index) => {
+                              const bid = orderBook.bids?.[index]
+                              const ask = orderBook.asks?.[index]
+                              const bidMax = orderBook.bids?.length ? Math.max(...orderBook.bids.map((level) => level.quantity || 1)) : 1
+                              const askMax = orderBook.asks?.length ? Math.max(...orderBook.asks.map((level) => level.quantity || 1)) : 1
+                              const bidWidth = bid ? Math.min(100, Math.max(20, (bid.quantity / bidMax) * 100)) : 0
+                              const askWidth = ask ? Math.min(100, Math.max(20, (ask.quantity / askMax) * 100)) : 0
+                              return (
+                                <div key={`book-row-${index}`} className="grid grid-cols-2 gap-3 text-sm text-white">
+                                  <div className="relative rounded-lg bg-gray-900/90 px-3 py-2">
+                                    {bid ? (
+                                      <>
+                                        <div className="absolute inset-y-0 left-0 rounded-l-lg bg-emerald-500/20" style={{ width: `${bidWidth}%` }} />
+                                        <div className="relative flex justify-between items-center">
+                                          <span>₹{bid.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                          <span>{bid.quantity}</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="text-gray-500">-</div>
+                                    )}
+                                  </div>
+                                  <div className="relative rounded-lg bg-gray-900/90 px-3 py-2">
+                                    {ask ? (
+                                      <>
+                                        <div className="absolute inset-y-0 right-0 rounded-r-lg bg-red-500/20" style={{ width: `${askWidth}%` }} />
+                                        <div className="relative flex justify-between items-center">
+                                          <span>₹{ask.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                          <span>{ask.quantity}</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="text-gray-500">-</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-400">Order book data is loading. Select a stock to fetch bids and asks.</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Trade Button */}
-              <button
-                onClick={handleTrade}
-                disabled={trading || !canAfford() || quantity <= 0}
-                className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors ${
-                  tradeType === 'buy'
-                    ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-800'
-                    : 'bg-red-600 hover:bg-red-700 disabled:bg-red-800'
-                } text-white disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {trading ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Processing...</span>
-                  </div>
-                ) : (
-                  `${tradeType === 'buy' ? 'Buy' : 'Sell'} ${quantity} ${quantity === 1 ? 'Share' : 'Shares'}`
-                )}
-              </button>
-
-              {!canAfford() && (
-                <p className="text-red-400 text-sm text-center">
-                  {tradeType === 'buy' 
-                    ? 'Insufficient balance' 
-                    : 'Insufficient shares'
-                  }
-                </p>
-              )}
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Select a stock to start trading</p>
-            </div>
-          )}
+          </div>
+          ) : null}
+
+          <TradingStockList
+            stocks={stocks}
+            selectedStock={selectedStock}
+            onSelectStock={handleSelectStock}
+            getOwnedQuantity={getOwnedQuantity}
+            refreshing={refreshing}
+            onRefresh={() => fetchData(false)}
+          />
         </div>
 
-        {/* Account Info */}
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h3 className="text-lg font-bold text-white mb-4">Account Balance</h3>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-green-400">
-              ₹{user.balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-            </p>
-            <p className="text-sm text-gray-400 mt-1">Available for trading</p>
+        <div className="space-y-6">
+          <TradingOrderPanel
+            selectedStock={selectedStock}
+            tradeType={tradeType}
+            setTradeType={setTradeType}
+            orderType={orderType}
+            setOrderType={setOrderType}
+            limitPrice={limitPrice}
+            setLimitPrice={setLimitPrice}
+            quantity={quantity}
+            setQuantity={setQuantity}
+            candleResolution={candleResolution}
+            setCandleResolution={setCandleResolution}
+            candles={candles}
+            candleLoading={candleLoading}
+            orderBook={orderBook}
+            getOwnedQuantity={getOwnedQuantity}
+            orderPrice={orderPrice}
+            calculateTotal={calculateTotal}
+            canAfford={canAfford}
+            handleTrade={handleTrade}
+            trading={trading}
+            socketStatus={socketStatus}
+            onOpenChart={() => setIsChartOpen(true)}
+          />
+
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-lg font-bold text-white mb-4">Account Balance</h3>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-green-400">
+                ₹{user.balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">Available for trading</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <TradingChartModal
+        isOpen={isChartOpen}
+        onClose={() => setIsChartOpen(false)}
+        selectedStock={selectedStock}
+        candles={candles}
+        candleLoading={candleLoading}
+        candleResolution={candleResolution}
+        setCandleResolution={setCandleResolution}
+      />
+    </>
   )
 }
 

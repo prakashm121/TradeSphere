@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -8,8 +9,10 @@ from app.models.transaction import Transaction
 from app.models.portfolio import Portfolio
 from app.models.order import Order
 from app.models.executed_trade import ExecutedTrade
+from app.models.trade_history import TradeHistory
 from app.schemas.trade import TradeRequest
 from app.services.matching_engine import MatchingEngine, Fill
+from app.routers.websocket import emit_price_update, emit_trade_tick, emit_book_snapshot, emit_order_update
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +149,16 @@ class TradeService:
             )
         )
 
+        # Persist raw trade history so daily/weekly candle aggregation can use it.
+        db.add(
+            TradeHistory(
+                stock_id=stock.stock_id,
+                price=float(fill.price),
+                quantity=int(fill.quantity),
+                timestamp=now,
+            )
+        )
+
         # Price update: only fills move price
         stock.last_traded_price = float(fill.price)
         stock.price = float(fill.price)  # backward compat
@@ -213,44 +226,79 @@ class TradeService:
 
     @staticmethod
     def place_order(db: Session, user_id: int, stock_id: int, side: str, order_type: str, quantity: int, price: float | None):
-        with db.begin_nested():
-            stock = db.query(Stock).filter(Stock.stock_id == stock_id).with_for_update().first()
-            if not stock:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stock not found")
+        stock = db.query(Stock).filter(Stock.stock_id == stock_id).with_for_update().first()
+        if not stock:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stock not found")
 
-            user = db.query(User).filter(User.user_id == user_id).with_for_update().first()
-            if not user:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        user = db.query(User).filter(User.user_id == user_id).with_for_update().first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-            incoming = Order(
-                user_id=user_id,
-                stock_id=stock_id,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                remaining_qty=quantity,
-                price=price,
-                status="OPEN",
-            )
-            db.add(incoming)
-            db.flush()  # ensure incoming.id
+        incoming = Order(
+            user_id=user_id,
+            stock_id=stock_id,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            remaining_qty=quantity,
+            price=price,
+            status="OPEN",
+        )
+        db.add(incoming)
+        db.flush()  # ensure incoming.id
 
-            fills = MatchingEngine.match(db, incoming)
-            for f in fills:
-                TradeService._apply_fill(db, stock, incoming, f)
+        fills = MatchingEngine.match(db, incoming)
+        for f in fills:
+            TradeService._apply_fill(db, stock, incoming, f)
 
-            # Ensure order status/remaining_qty updates are visible to subsequent queries
-            db.flush()
+        # Ensure order status/remaining_qty updates are visible to subsequent queries
+        db.flush()
 
-            # Update bid/ask from top of book (best levels only)
-            TradeService._update_best_prices(db, stock_id=stock.stock_id, stock=stock)
+        # Update bid/ask from top of book (best levels only)
+        TradeService._update_best_prices(db, stock_id=stock.stock_id, stock=stock)
 
-            db.flush()
+        db.flush()
+
+        order_payload = {
+            "order_id": int(incoming.id),
+            "stock_id": int(incoming.stock_id),
+            "status": incoming.status,
+            "filled_qty": int(incoming.quantity - incoming.remaining_qty),
+            "remaining_qty": int(incoming.remaining_qty),
+            "order_type": incoming.order_type,
+            "side": incoming.side,
+            "price": float(incoming.price) if incoming.price is not None else None,
+        }
 
         db.commit()
+
+        TradeService._schedule_event_broadcast(stock.stock_id, fills, order_payload)
+
         db.refresh(user)
         db.refresh(incoming)
         return incoming, fills, user
+
+    @staticmethod
+    def _schedule_event_broadcast(stock_id: int, fills: list[Fill], incoming_order: dict) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        if fills:
+            for fill in fills:
+                loop.create_task(
+                    emit_trade_tick(
+                        stock_id=stock_id,
+                        price=float(fill.price),
+                        quantity=int(fill.quantity),
+                        aggressor_side=fill.aggressor_side,
+                    )
+                )
+
+        loop.create_task(emit_price_update(stock_id=stock_id))
+        loop.create_task(emit_book_snapshot(stock_id=stock_id))
+        loop.create_task(emit_order_update(incoming_order))
 
     @staticmethod
     def _update_best_prices(db: Session, stock_id: int, stock: Stock) -> None:
@@ -301,4 +349,5 @@ class TradeService:
         return {
             "success": True,
             "new_balance": float(user.balance),
+            "available_cash": float(user.available_cash),
         }

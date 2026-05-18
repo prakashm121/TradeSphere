@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import axios from 'axios'
 import { User, TrendingUp, Wallet, BarChart3, Menu, X } from 'lucide-react'
 import Landing from './components/Landing'
 import Login from './components/Login'
@@ -8,6 +9,7 @@ import Trading from './components/Trading'
 import Transactions from './components/Transactions'
 import './App.css'
 import { auth } from './utils/auth'
+import { API_BASE_URL } from './utils/axiosAuthSetup'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -16,21 +18,42 @@ function App() {
   const [authView, setAuthView] = useState('landing')
 
   useEffect(() => {
-    // Restore session only if BOTH token + user are present.
     const token = auth.getToken()
     const savedUser = auth.getUser()
 
-    if (token && savedUser) {
-      if (savedUser && savedUser.user_id && typeof savedUser.balance === 'number') {
-        setUser(savedUser)
-      } else {
-        console.warn('Invalid saved user in localStorage; clearing auth.')
+    if (!token || !savedUser) {
+      auth.clearAuth()
+      return
+    }
+
+    if (!savedUser.user_id || typeof savedUser.balance !== 'number') {
+      console.warn('Invalid saved user in localStorage; clearing auth.')
+      auth.clearAuth()
+      return
+    }
+
+    const validateSession = async () => {
+      try {
+        const [meRes, balanceRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/auth/me`),
+          axios.get(`${API_BASE_URL}/balance`),
+        ])
+        const me = meRes.data
+        const balance = balanceRes.data?.balance
+        const validatedUser = {
+          user_id: me.user_id,
+          email: me.email,
+          balance: typeof balance === 'number' ? balance : savedUser.balance,
+        }
+        setUser(validatedUser)
+        auth.setUser(validatedUser)
+      } catch (err) {
+        console.warn('Session validation failed, clearing auth.', err)
         auth.clearAuth()
       }
-    } else {
-      // Avoid half-sessions (user without token or token without user)
-      auth.clearAuth()
     }
+
+    validateSession()
   }, [])
 
   const handleLogin = (userData) => {

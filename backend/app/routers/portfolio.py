@@ -23,13 +23,22 @@ def get_portfolio(
     result = []
     for item in portfolio_items:
         stock = item.stock
+        current_value = item.quantity * stock.price
+        avg_entry_price = item.avg_entry_price or 0.0
+        unrealised_pnl = (stock.price - avg_entry_price) * item.quantity
+        position_type = "LONG" if item.quantity >= 0 else "SHORT"
+
         result.append({
             "quantity": item.quantity,
             "name": stock.name,
             "symbol": stock.symbol,
             "price": stock.price,
             "stock_id": stock.stock_id,
-            "current_value": item.quantity * stock.price
+            "current_value": current_value,
+            "avg_entry_price": avg_entry_price,
+            "margin_held": item.margin_held,
+            "position_type": position_type,
+            "unrealised_pnl": unrealised_pnl,
         })
     
     return result
